@@ -75,8 +75,7 @@ endchoice
 
 config SPIRAM_SIZE
     int
-    default 4194304 if SPIRAM_TYPE_ESPPSRAM32
-    default 0
+    default -1
 
 choice SPIRAM_SPEED
     prompt "Set RAM clock speed"
@@ -167,6 +166,38 @@ config SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY
         to it is in internal memory. If you have a task that needs a large amount of stack and does not call on
         ROM code in any way (no direct calls, but also no Bluetooth/WiFi), you can try to disable this and use
         xTaskCreateStatic to create the tasks stack in external memory.
+
+config SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY
+    bool "Allow .bss segment placed in external memory"
+    default n
+    depends on SPIRAM_SUPPORT
+    help
+        If enabled the option,and add EXT_RAM_ATTR defined your variable,then your variable will be placed
+        in PSRAM instead of internal memory, and placed most of variables of lwip,net802.11,pp,bluedroid library
+        to external memory defaultly. 
+
+choice SPIRAM_OCCUPY_SPI_HOST
+    prompt "SPI host to use for 32MBit PSRAM"
+    default SPIRAM_OCCUPY_VSPI_HOST
+    depends on SPIRAM_SPEED_80M
+    help
+        When both flash and PSRAM is working under 80MHz, and the PSRAM is of type 32MBit, one of the HSPI/VSPI
+        host will be used to output the clock. Select which one to use here.
+
+config SPIRAM_OCCUPY_HSPI_HOST
+    bool "HSPI host (SPI2)"
+config SPIRAM_OCCUPY_VSPI_HOST
+    bool "VSPI host (SPI3)"
+endchoice
+
+config PICO_PSRAM_CS_IO
+    int "PSRAM CS IO for ESP32-PICO chip"
+    depends on SPIRAM_SUPPORT
+    range 0 33
+    default 10
+    help
+        When ESP32-PICO chip connect a external psram, the clock IO and data IO is fixed, but the CS IO can be 
+        any unused GPIO, user can config it based on hardware design.
 
 endmenu
 
@@ -797,15 +828,15 @@ config NO_BLOBS
        that after enabling this Wi-Fi/Bluetooth will not work.
 
 config ESP_TIMER_PROFILING
-	bool "Enable esp_timer profiling features"
-	default n
-	help
-		If enabled, esp_timer_dump will dump information such as number of times
-		the timer was started, number of times the timer has triggered, and the
-		total time it took for the callback to run.
-		This option has some effect on timer performance and the amount of memory
-		used for timer storage, and should only be used for debugging/testing
-		purposes.
+    bool "Enable esp_timer profiling features"
+    default n
+    help
+        If enabled, esp_timer_dump will dump information such as number of times
+        the timer was started, number of times the timer has triggered, and the
+        total time it took for the callback to run.
+        This option has some effect on timer performance and the amount of memory
+        used for timer storage, and should only be used for debugging/testing
+        purposes.
 
 config COMPATIBLE_PRE_V2_1_BOOTLOADERS
     bool "App compatible with bootloaders before IDF v2.1"
@@ -1078,7 +1109,7 @@ config ESP32_PHY_INIT_DATA_IN_PARTITION
         into the application binary.
 
         If unsure, choose 'n'.
-	
+    
 config ESP32_PHY_MAX_WIFI_TX_POWER
     int "Max WiFi TX power (dBm)"
     range 0 20
@@ -1088,8 +1119,8 @@ config ESP32_PHY_MAX_WIFI_TX_POWER
         data rates may be lower than this setting.
 
 config ESP32_PHY_MAX_TX_POWER
-	int
-	default ESP32_PHY_MAX_WIFI_TX_POWER
+    int
+    default ESP32_PHY_MAX_WIFI_TX_POWER
 
 endmenu  # PHY
 
@@ -1097,63 +1128,63 @@ endmenu  # PHY
 menu "Power Management"
 
 config PM_ENABLE
-	bool "Support for power management"
-	default n
-	help
-		If enabled, application is compiled with support for power management.
-		This option has run-time overhead (increased interrupt latency,
-		longer time to enter idle state), and it also reduces accuracy of
-		RTOS ticks and timers used for timekeeping.
-		Enable this option if application uses power management APIs. 
+    bool "Support for power management"
+    default n
+    help
+        If enabled, application is compiled with support for power management.
+        This option has run-time overhead (increased interrupt latency,
+        longer time to enter idle state), and it also reduces accuracy of
+        RTOS ticks and timers used for timekeeping.
+        Enable this option if application uses power management APIs. 
 
 config PM_DFS_INIT_AUTO
-	bool "Enable dynamic frequency scaling (DFS) at startup"
-	depends on PM_ENABLE
-	default n
-	help
-		If enabled, startup code configures dynamic frequency scaling.
-		Max CPU frequency is set to CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ setting,
-		min frequency is set to XTAL frequency.
-		If disabled, DFS will not be active until the application
-		configures it using esp_pm_configure function.
+    bool "Enable dynamic frequency scaling (DFS) at startup"
+    depends on PM_ENABLE
+    default n
+    help
+        If enabled, startup code configures dynamic frequency scaling.
+        Max CPU frequency is set to CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ setting,
+        min frequency is set to XTAL frequency.
+        If disabled, DFS will not be active until the application
+        configures it using esp_pm_configure function.
 
 config PM_USE_RTC_TIMER_REF
-	bool "Use RTC timer to prevent time drift (EXPERIMENTAL)"
-	depends on PM_ENABLE && (ESP32_TIME_SYSCALL_USE_RTC || ESP32_TIME_SYSCALL_USE_RTC_FRC1)
-	default n
-	help
-		When APB clock frequency changes, high-resolution timer (esp_timer)
-		scale and base value need to be adjusted. Each adjustment may cause
-		small error, and over time such small errors may cause time drift.
-		If this option is enabled, RTC timer will be used as a reference to
-		compensate for the drift.
-		It is recommended that this option is only used if 32k XTAL is selected
-		as RTC clock source.
+    bool "Use RTC timer to prevent time drift (EXPERIMENTAL)"
+    depends on PM_ENABLE && (ESP32_TIME_SYSCALL_USE_RTC || ESP32_TIME_SYSCALL_USE_RTC_FRC1)
+    default n
+    help
+        When APB clock frequency changes, high-resolution timer (esp_timer)
+        scale and base value need to be adjusted. Each adjustment may cause
+        small error, and over time such small errors may cause time drift.
+        If this option is enabled, RTC timer will be used as a reference to
+        compensate for the drift.
+        It is recommended that this option is only used if 32k XTAL is selected
+        as RTC clock source.
 
 config PM_PROFILING
-	bool "Enable profiling counters for PM locks"
-	depends on PM_ENABLE
-	default n
-	help
-		If enabled, esp_pm_* functions will keep track of the amount of time
-		each of the power management locks has been held, and esp_pm_dump_locks
-		function will print this information.
-		This feature can be used to analyze which locks are preventing the chip
-		from going into a lower power state, and see what time the chip spends
-		in each power saving mode. This feature does incur some run-time
-		overhead, so should typically be disabled in production builds. 
+    bool "Enable profiling counters for PM locks"
+    depends on PM_ENABLE
+    default n
+    help
+        If enabled, esp_pm_* functions will keep track of the amount of time
+        each of the power management locks has been held, and esp_pm_dump_locks
+        function will print this information.
+        This feature can be used to analyze which locks are preventing the chip
+        from going into a lower power state, and see what time the chip spends
+        in each power saving mode. This feature does incur some run-time
+        overhead, so should typically be disabled in production builds. 
 
 config PM_TRACE
-	bool "Enable debug tracing of PM using GPIOs"
-	depends on PM_ENABLE
-	default n
-	help
-		If enabled, some GPIOs will be used to signal events such as RTOS ticks,
-		frequency switching, entry/exit from idle state. Refer to pm_trace.c
-		file for the list of GPIOs.
-		This feature is intended to be used when analyzing/debugging behavior
-		of power management implementation, and should be kept disabled in
-		applications.
-	
+    bool "Enable debug tracing of PM using GPIOs"
+    depends on PM_ENABLE
+    default n
+    help
+        If enabled, some GPIOs will be used to signal events such as RTOS ticks,
+        frequency switching, entry/exit from idle state. Refer to pm_trace.c
+        file for the list of GPIOs.
+        This feature is intended to be used when analyzing/debugging behavior
+        of power management implementation, and should be kept disabled in
+        applications.
+    
 
 endmenu # "Power Management"
